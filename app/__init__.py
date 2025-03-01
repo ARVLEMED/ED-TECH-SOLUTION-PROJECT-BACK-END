@@ -18,9 +18,11 @@ def create_app(config_class="app.config.Config"):
     migrate.init_app(app, db)
     bcrypt.init_app(app)
     ma.init_app(app)
-    CORS(app)
+    CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
 
-    from app.routes import api_bp
-    app.register_blueprint(api_bp)
 
+    with app.app_context():
+        from app.routes import api_bp  # Import routes
+        app.register_blueprint(api_bp, url_prefix='/api')  # ✅ Register blueprint with prefix
+    
     return app

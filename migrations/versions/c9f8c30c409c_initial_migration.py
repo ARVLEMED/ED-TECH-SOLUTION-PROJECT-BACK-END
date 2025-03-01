@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: d587ebff7856
+Revision ID: c9f8c30c409c
 Revises: 
-Create Date: 2025-03-01 01:48:36.991022
+Create Date: 2025-03-01 19:41:42.092879
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'd587ebff7856'
+revision = 'c9f8c30c409c'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -23,6 +23,11 @@ def upgrade():
     sa.Column('name', sa.String(length=100), nullable=False),
     sa.Column('term', sa.String(length=50), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('subject',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('subject_name', sa.String(length=100), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('user',
@@ -39,20 +44,20 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=100), nullable=False),
     sa.Column('class_teacher_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['class_teacher_id'], ['user.id'], ),
+    sa.ForeignKeyConstraint(['class_teacher_id'], ['user.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('subject',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('subject_name', sa.String(length=100), nullable=False),
+    op.create_table('exam_subject',
     sa.Column('exam_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['exam_id'], ['exam.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.Column('subject_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['exam_id'], ['exam.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['subject_id'], ['subject.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('exam_id', 'subject_id')
     )
     op.create_table('teacher',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['user.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('student',
@@ -61,16 +66,16 @@ def upgrade():
     sa.Column('class_id', sa.Integer(), nullable=False),
     sa.Column('parent_id', sa.Integer(), nullable=False),
     sa.Column('admission_number', sa.String(length=100), nullable=False),
-    sa.ForeignKeyConstraint(['class_id'], ['class.id'], ),
-    sa.ForeignKeyConstraint(['parent_id'], ['user.id'], ),
+    sa.ForeignKeyConstraint(['class_id'], ['class.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['parent_id'], ['user.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('admission_number')
     )
     op.create_table('teacher_subject',
     sa.Column('teacher_id', sa.Integer(), nullable=False),
     sa.Column('subject_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['subject_id'], ['subject.id'], ),
-    sa.ForeignKeyConstraint(['teacher_id'], ['teacher.id'], ),
+    sa.ForeignKeyConstraint(['subject_id'], ['subject.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['teacher_id'], ['teacher.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('teacher_id', 'subject_id')
     )
     op.create_table('result',
@@ -81,20 +86,28 @@ def upgrade():
     sa.Column('score', sa.Float(), nullable=False),
     sa.Column('teacher_id', sa.Integer(), nullable=False),
     sa.Column('date', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['exam_id'], ['exam.id'], ),
-    sa.ForeignKeyConstraint(['student_id'], ['student.id'], ),
-    sa.ForeignKeyConstraint(['subject_id'], ['subject.id'], ),
-    sa.ForeignKeyConstraint(['teacher_id'], ['user.id'], ),
+    sa.ForeignKeyConstraint(['exam_id'], ['exam.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['student_id'], ['student.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['subject_id'], ['subject.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['teacher_id'], ['user.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('student_subject',
+    sa.Column('student_id', sa.Integer(), nullable=False),
+    sa.Column('subject_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['student_id'], ['student.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['subject_id'], ['subject.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('student_id', 'subject_id')
     )
     op.create_table('welfare_report',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('student_id', sa.Integer(), nullable=False),
     sa.Column('teacher_id', sa.Integer(), nullable=False),
     sa.Column('remarks', sa.String(length=200), nullable=False),
+    sa.Column('category', sa.String(length=50), nullable=False),
     sa.Column('date', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['student_id'], ['student.id'], ),
-    sa.ForeignKeyConstraint(['teacher_id'], ['user.id'], ),
+    sa.ForeignKeyConstraint(['student_id'], ['student.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['teacher_id'], ['user.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     # ### end Alembic commands ###
@@ -103,12 +116,14 @@ def upgrade():
 def downgrade():
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_table('welfare_report')
+    op.drop_table('student_subject')
     op.drop_table('result')
     op.drop_table('teacher_subject')
     op.drop_table('student')
     op.drop_table('teacher')
-    op.drop_table('subject')
+    op.drop_table('exam_subject')
     op.drop_table('class')
     op.drop_table('user')
+    op.drop_table('subject')
     op.drop_table('exam')
     # ### end Alembic commands ###
