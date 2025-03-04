@@ -18,8 +18,7 @@ def create_app(config_class="app.config.Config"):
     migrate.init_app(app, db)
     bcrypt.init_app(app)
     ma.init_app(app)
-    CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
-
+    CORS(app, resources={r"/api/*": {"origins": "http://localhost:5174"}})
 
     with app.app_context():
         from app.routes import api_bp  # Import routes
