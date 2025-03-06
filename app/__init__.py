@@ -4,6 +4,7 @@ from flask_migrate import Migrate
 from flask_bcrypt import Bcrypt
 from flask_marshmallow import Marshmallow
 from flask_cors import CORS
+import jwt  # Use PyJWT instead of 'jwt.exceptions'
 from flask_jwt_extended import JWTManager  # Add JWTManager
 from sqlalchemy.sql import text  # Import text for SQL expressions
 import logging  # Add logging for debugging
@@ -13,7 +14,7 @@ db = SQLAlchemy()
 migrate = Migrate()
 bcrypt = Bcrypt()
 ma = Marshmallow()
-jwt = JWTManager()  # Initialize JWTManager
+jwt_manager = JWTManager()  # Rename to avoid conflicts with PyJWT
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)  # Enable debug logging
@@ -33,14 +34,13 @@ def create_app(config_class="app.config.Config"):
     migrate.init_app(app, db)
     bcrypt.init_app(app)
     ma.init_app(app)
-    jwt.init_app(app)  # Initialize JWTManager with the app
+    jwt_manager.init_app(app)  # Initialize JWTManager with the app
     CORS(app, resources={r"/api/*": {"origins": "https://byte-force-ed-tech.netlify.app/"}})
 
     # Enable foreign keys for SQLite using text()
     @app.before_request
     def enable_foreign_keys():
         db.session.execute(text('PRAGMA foreign_keys = ON'))
-        
 
     # Import models and routes within the app context
     with app.app_context():
