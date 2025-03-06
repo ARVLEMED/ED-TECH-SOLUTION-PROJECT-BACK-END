@@ -128,7 +128,6 @@ def seed_student_subjects():
             raise ValueError("Students or subjects not seeded.")
         
         for student in students:
-            # Ensure there are enough subjects to sample
             if len(subjects) < 3:
                 raise ValueError("Not enough subjects to assign to students.")
             sampled_subjects = random.sample(subjects, random.randint(3, min(5, len(subjects))))
@@ -144,21 +143,47 @@ def seed_exams():
         if not forms:
             raise ValueError("Forms not seeded.")
         
-        exams = [
-            Exam(
-                name=f"{term} {year}",
-                term=term,
-                form_id=form.id,
-                created_at=datetime.utcnow(),
-                deleted_at=None
-            )
-            for form in forms
-            for term in ["Term 1", "Term 2", "Term 3"]
-            for year in [2023, 2024]
-        ]
+        exam_types = ["CAT 1", "Midterm", "End Term"]
+        terms = ["Term 1", "Term 2", "Term 3"]
+        years = [2023, 2024, 2025]
+        
+        exams = []
+        for form in forms:
+            for term in terms:
+                for exam_type in exam_types:
+                    for year in years:
+                        month = random.randint(1, 12)
+                        day = random.randint(1, 28)
+                        exam_date = datetime(year, month, day)
+                        
+                        exams.append(Exam(
+                            name=exam_type,
+                            form_id=form.id,
+                            term=term,
+                            date=exam_date,
+                            deleted_at=None
+                        ))
+        
         db.session.bulk_save_objects(exams)
         db.session.commit()
     print("Exams seeded.")
+
+def seed_teacher_subjects():
+    print("Seeding teacher-subject relationships...")
+    with app.app_context():
+        teachers = Teacher.query.all()
+        subjects = Subject.query.all()
+        if not teachers or not subjects:
+            raise ValueError("Teachers or subjects not seeded.")
+        
+        teacher_subjects = []
+        for teacher in teachers:
+            sampled_subjects = random.sample(subjects, random.randint(2, 4))
+            for subject in sampled_subjects:
+                teacher_subjects.append(TeacherSubject(teacher_id=teacher.id, subject_id=subject.id, deleted_at=None))
+        db.session.bulk_save_objects(teacher_subjects)
+        db.session.commit()
+    print("Teacher-subject relationships seeded.")
 
 def seed_results():
     print("Seeding results...")
@@ -166,18 +191,30 @@ def seed_results():
         students = Student.query.all()
         subjects = Subject.query.all()
         exams = Exam.query.all()
-        if not students or not subjects or not exams:
-            raise ValueError("Students, subjects, or exams not seeded.")
+        teachers = Teacher.query.all()
+        teacher_subjects = TeacherSubject.query.all()
+        
+        if not students or not subjects or not exams or not teachers or not teacher_subjects:
+            raise ValueError("Students, subjects, exams, teachers, or teacher_subjects not seeded.")
+        
+        # Create a mapping of subject_id to teacher_id for efficiency
+        subject_to_teacher = {ts.subject_id: ts.teacher_id for ts in teacher_subjects}
         
         results = []
         for student in students:
-            for exam in exams:
+            student_form_id = student.school_class.form_id
+            form_exams = [e for e in exams if e.form_id == student_form_id]
+            sampled_exams = random.sample(form_exams, min(3, len(form_exams)))
+            for exam in sampled_exams:
                 sampled_subjects = random.sample(subjects, random.randint(3, 5))
                 for subject in sampled_subjects:
+                    # Assign teacher_id based on TeacherSubject relationship, fallback to random teacher
+                    teacher_id = subject_to_teacher.get(subject.id, random.choice(teachers).id)
                     results.append(Result(
                         student_id=student.id,
                         subject_id=subject.id,
                         exam_id=exam.id,
+                        teacher_id=teacher_id,  # New field
                         score=random.uniform(0, 100),
                         deleted_at=None
                     ))
@@ -209,23 +246,6 @@ def seed_welfare_reports():
         db.session.commit()
     print("Welfare reports seeded.")
 
-def seed_teacher_subjects():
-    print("Seeding teacher-subject relationships...")
-    with app.app_context():
-        teachers = Teacher.query.all()
-        subjects = Subject.query.all()
-        if not teachers or not subjects:
-            raise ValueError("Teachers or subjects not seeded.")
-        
-        teacher_subjects = []
-        for teacher in teachers:
-            sampled_subjects = random.sample(subjects, random.randint(2, 4))
-            for subject in sampled_subjects:
-                teacher_subjects.append(TeacherSubject(teacher_id=teacher.id, subject_id=subject.id))  # Removed deleted_at
-        db.session.bulk_save_objects(teacher_subjects)
-        db.session.commit()
-    print("Teacher-subject relationships seeded.")
-
 def seed_data():
     clear_existing_data()
     seed_forms()
@@ -236,9 +256,9 @@ def seed_data():
     seed_students()
     seed_student_subjects()
     seed_exams()
+    seed_teacher_subjects()  # Moved before seed_results
     seed_results()
     seed_welfare_reports()
-    seed_teacher_subjects()
 
 if __name__ == "__main__":
     seed_data()

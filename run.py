@@ -1,5 +1,5 @@
 from app import create_app
-from app.seed_data import seed_data
+from seed_data import seed_data
 
 app = create_app()
 
