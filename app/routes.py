@@ -790,26 +790,34 @@ def delete_exam(id):
 @jwt_required()
 def create_result():
     """Create a result (teacher only)."""
-    current_user_id = get_jwt_identity()
+    print("DEBUG: create_result called")  # Debug log
+    current_user_id = get_jwt_identity()  # User.id from JWT
     user = User.query.get(current_user_id)
     if not user or user.role != 'teacher':
         return jsonify({"message": "Unauthorized: Teacher access required"}), 401
+
     data = request.get_json()
     required_fields = ['student_id', 'subject_id', 'exam_id', 'score', 'teacher_id']
     if not data or any(field not in data for field in required_fields):
         return jsonify({"message": "Missing required fields"}), 400
-    if data['teacher_id'] != current_user_id:
-        return jsonify({"message": "Unauthorized: Cannot create result for another teacher"}), 401
+
+    # Verify the teacher_id matches the current user's Teacher record
+    teacher = Teacher.query.filter_by(id=data['teacher_id'], user_id=current_user_id, deleted_at=None).first()
+    if not teacher:
+        return jsonify({"message": "Unauthorized: Invalid teacher ID or not your profile"}), 401
+
     try:
         student = Student.query.filter_by(id=data['student_id'], deleted_at=None).first()
         subject = Subject.query.filter_by(id=data['subject_id'], deleted_at=None).first()
         exam = Exam.query.filter_by(id=data['exam_id'], deleted_at=None).first()
         if not student or not subject or not exam:
             return jsonify({"message": "Invalid student, subject, or exam ID"}), 404
+
         classes = SchoolClass.query.filter_by(class_teacher_id=current_user_id, deleted_at=None).all()
         class_ids = [cls.id for cls in classes]
         if student.school_class_id not in class_ids:
             return jsonify({"message": "Unauthorized: Student not in your class"}), 401
+
         new_result = Result(
             student_id=data['student_id'],
             subject_id=data['subject_id'],
@@ -948,11 +956,11 @@ def delete_result(id):
 @api_bp.route('/welfare_reports', methods=['POST'])
 @jwt_required()
 def create_welfare_report():
-    """Create a welfare report (teacher only)."""
+    """Create a welfare report (teacher or admin)."""
     current_user_id = get_jwt_identity()
     user = User.query.get(current_user_id)
-    if not user or user.role != 'teacher':
-        return jsonify({"message": "Unauthorized: Teacher access required"}), 401
+    if not user or user.role not in ['teacher', 'admin']:
+        return jsonify({"message": "Unauthorized: Teacher or Admin access required"}), 401
     data = request.get_json()
     required_fields = ['student_id', 'category', 'remarks']
     if not data or any(field not in data for field in required_fields):
@@ -963,17 +971,20 @@ def create_welfare_report():
         student = Student.query.filter_by(id=data['student_id'], deleted_at=None).first()
         if not student:
             return jsonify({"message": "Student not found"}), 404
-        classes = SchoolClass.query.filter_by(class_teacher_id=current_user_id, deleted_at=None).all()
-        class_ids = [cls.id for cls in classes]
-        if student.school_class_id not in class_ids:
-            return jsonify({"message": "Unauthorized: Student not in your class"}), 401
+        
+        # Only check class assignment for teachers, not admins
+        if user.role == 'teacher':
+            classes = SchoolClass.query.filter_by(class_teacher_id=current_user_id, deleted_at=None).all()
+            class_ids = [cls.id for cls in classes]
+            if student.school_class_id not in class_ids:
+                return jsonify({"message": "Unauthorized: Student not in your class"}), 401
+        
         new_report = WelfareReport(
             student_id=data['student_id'],
             category=data['category'],
             remarks=data['remarks'],
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
-            created_by=current_user_id,
             deleted_at=None
         )
         db.session.add(new_report)
@@ -1120,6 +1131,29 @@ def get_teachers():
         for teacher in teachers
     ]
     return jsonify(teacher_data)
+
+#get teacher id for teacher exams page
+@api_bp.route('/me/teacher', methods=['GET'])
+@jwt_required()
+def get_current_teacher():
+    """Retrieve the authenticated teacher's profile (teacher only)."""
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    if not user or user.role != 'teacher':
+        return jsonify({"message": "Unauthorized: Teacher access required"}), 401
+
+    teacher = Teacher.query.filter_by(user_id=current_user_id, deleted_at=None).first()
+    if not teacher:
+        return jsonify({"message": "Teacher profile not found"}), 404
+
+    teacher_data = {
+        "id": teacher.id,
+        "user_id": teacher.user_id,
+        "username": user.username,
+        "email": user.email,
+        # Add more fields if needed, e.g., subjects or classes
+    }
+    return jsonify(teacher_data), 200
 
 @api_bp.route('/teachers/<int:id>', methods=['GET'])
 @jwt_required()
