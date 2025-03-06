@@ -1,13 +1,15 @@
 from app import db
+from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey
 from sqlalchemy.orm import relationship, validates
 from datetime import datetime
 
 # Association table for Teacher-Subject many-to-many relationship
 class TeacherSubject(db.Model):
-    __tablename__ = 'teacher_subject'
-    id = db.Column(db.Integer, primary_key=True)
-    teacher_id = db.Column(db.Integer, db.ForeignKey('teacher.id'), nullable=False)
-    subject_id = db.Column(db.Integer, db.ForeignKey('subject.id'), nullable=False)
+    __tablename__ = 'teacher_subjects'  # Pluralized for consistency
+    id = Column(Integer, primary_key=True)
+    teacher_id = Column(Integer, ForeignKey('teachers.id'), nullable=False)  # Updated to 'teachers.id'
+    subject_id = Column(Integer, ForeignKey('subjects.id'), nullable=False)  # Updated to 'subjects.id'
+    deleted_at = Column(DateTime, nullable=True)  # Added for soft deletes
 
     # Add index for performance on frequently queried fields
     __table_args__ = (
@@ -16,27 +18,28 @@ class TeacherSubject(db.Model):
     )
 
 # Association table for Student-Subject many-to-many relationship
-student_subjects = db.Table('student_subject',
-    db.Column('student_id', db.Integer, db.ForeignKey('student.id'), primary_key=True),
-    db.Column('subject_id', db.Integer, db.ForeignKey('subject.id'), primary_key=True),
+student_subjects = db.Table('student_subjects',  # Pluralized for consistency
+    Column('student_id', Integer, ForeignKey('students.id'), primary_key=True),  # Updated to 'students.id'
+    Column('subject_id', Integer, ForeignKey('subjects.id'), primary_key=True),  # Updated to 'subjects.id'
     db.Index('idx_student_subject_student_id', 'student_id'),
     db.Index('idx_student_subject_subject_id', 'subject_id'),
 )
 
 # User Model
 class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False, index=True)
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
-    password = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(50), nullable=False, index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    deleted_at = db.Column(db.DateTime, nullable=True)
+    __tablename__ = 'users'
+    id = Column(Integer, primary_key=True)
+    username = Column(String(80), unique=True, nullable=False, index=True)
+    email = Column(String(120), unique=True, nullable=False, index=True)
+    password = Column(String(255), nullable=False)
+    role = Column(String(50), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    deleted_at = Column(DateTime, nullable=True)
     
-    teacher = db.relationship('Teacher', back_populates='user', uselist=False)  # Use back_populates
-    students = db.relationship('Student', back_populates='parent')  # Use back_populates
-    managed_classes = db.relationship('SchoolClass', back_populates='class_teacher')  # Use back_populates
+    teacher = relationship('Teacher', back_populates='user', uselist=False)
+    students = relationship('Student', back_populates='parent')
+    managed_classes = relationship('SchoolClass', back_populates='class_teacher')
 
     @validates('role')
     def validate_role(self, key, role):
@@ -47,15 +50,18 @@ class User(db.Model):
 
 # Teacher Model
 class Teacher(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    __tablename__ = 'teachers'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    deleted_at = Column(DateTime, nullable=True)
     
     # Many-to-Many Relationship with Subject
-    subjects = db.relationship(
-        'Subject', secondary='teacher_subject',
-        back_populates='teaching_teachers'  # Use back_populates
+    subjects = relationship(
+        'Subject', secondary='teacher_subjects',  # Updated to plural
+        back_populates='teaching_teachers'
     )
-    user = db.relationship('User', back_populates='teacher')  # Add back_populates for user
+    user = relationship('User', back_populates='teacher')
+    results = relationship('Result', back_populates='teacher')  # Add this line
 
     @validates('user_id')
     def validate_user_id(self, key, user_id):
@@ -63,22 +69,21 @@ class Teacher(db.Model):
             raise ValueError(f"Invalid user_id: {user_id} - No matching user exists")
         return user_id
 
-    deleted_at = db.Column(db.DateTime, nullable=True)
-
 # Student Model
 class Student(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    school_class_id = db.Column(db.Integer, db.ForeignKey('school_class.id'), nullable=False, index=True, server_default='1')
-    admission_number = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    parent_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
-    deleted_at = db.Column(db.DateTime, nullable=True)
+    __tablename__ = 'students'
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    school_class_id = Column(Integer, ForeignKey('school_classes.id'), nullable=False, index=True, server_default='1')  # Updated to 'school_classes.id'
+    admission_number = Column(String(50), unique=True, nullable=False, index=True)
+    parent_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    deleted_at = Column(DateTime, nullable=True)
     
-    school_class = db.relationship('SchoolClass', back_populates='students')  # Use back_populates
-    parent = db.relationship('User', back_populates='students')  # Use back_populates
-    subjects = db.relationship('Subject', secondary='student_subject', back_populates='enrolled_students')  # Use back_populates
-    results = db.relationship('Result', back_populates='student')  # Use back_populates
-    welfare_reports = db.relationship('WelfareReport', back_populates='student')  # Use back_populates
+    school_class = relationship('SchoolClass', back_populates='students')
+    parent = relationship('User', back_populates='students')
+    subjects = relationship('Subject', secondary='student_subjects', back_populates='enrolled_students')  # Updated to plural
+    results = relationship('Result', back_populates='student')
+    welfare_reports = relationship('WelfareReport', back_populates='student')
 
     @validates('school_class_id')
     def validate_school_class_id(self, key, school_class_id):
@@ -94,24 +99,26 @@ class Student(db.Model):
 
 # Form Model
 class Form(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    deleted_at = db.Column(db.DateTime, nullable=True)
+    __tablename__ = 'forms'
+    id = Column(db.Integer, primary_key=True)
+    name = Column(db.String(50), unique=True, nullable=False, index=True)
+    deleted_at = Column(db.DateTime, nullable=True)
     
-    classes = db.relationship('SchoolClass', back_populates='form')  # Use back_populates
-    exams = db.relationship('Exam', back_populates='form')  # Use back_populates
+    classes = db.relationship('SchoolClass', back_populates='form')
+    exams = db.relationship('Exam', back_populates='form')
 
 # School Class Model
 class SchoolClass(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), unique=True, nullable=False, index=True)
-    form_id = db.Column(db.Integer, db.ForeignKey('form.id'), nullable=False, index=True)
-    class_teacher_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True, server_default=None)
-    deleted_at = db.Column(db.DateTime, nullable=True)
+    __tablename__ = 'school_classes'
+    id = Column(db.Integer, primary_key=True)
+    name = Column(db.String(100), unique=True, nullable=False, index=True)
+    form_id = Column(db.Integer, ForeignKey('forms.id'), nullable=False, index=True)  # Updated to 'forms.id'
+    class_teacher_id = Column(db.Integer, ForeignKey('users.id'), nullable=True, index=True, server_default=None)
+    deleted_at = Column(db.DateTime, nullable=True)
     
-    form = db.relationship('Form', back_populates='classes', foreign_keys='SchoolClass.form_id')  # Use back_populates
-    class_teacher = db.relationship('User', back_populates='managed_classes', foreign_keys='SchoolClass.class_teacher_id')  # Use back_populates
-    students = db.relationship('Student', back_populates='school_class')  # Use back_populates
+    form = db.relationship('Form', back_populates='classes', foreign_keys=[form_id])
+    class_teacher = relationship('User', back_populates='managed_classes', foreign_keys='SchoolClass.class_teacher_id')
+    students = relationship('Student', back_populates='school_class')
 
     @validates('form_id')
     def validate_form_id(self, key, form_id):
@@ -127,25 +134,28 @@ class SchoolClass(db.Model):
 
 # Subject Model
 class Subject(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), unique=True, nullable=False, index=True)
-    deleted_at = db.Column(db.DateTime, nullable=True)
+    __tablename__ = 'subjects'
+    id = Column(db.Integer, primary_key=True)
+    name = Column(db.String(100), unique=True, nullable=False, index=True)
+    deleted_at = Column(db.DateTime, nullable=True)
     
-    results = db.relationship('Result', back_populates='subject')  # Use back_populates
-    enrolled_students = db.relationship('Student', secondary='student_subject', back_populates='subjects')  # Use back_populates
-    teaching_teachers = db.relationship('Teacher', secondary='teacher_subject', back_populates='subjects')  # Use back_populates
+    results = relationship('Result', back_populates='subject')
+    enrolled_students = relationship('Student', secondary='student_subjects', back_populates='subjects')  # Updated to plural
+    teaching_teachers = relationship('Teacher', secondary='teacher_subjects', back_populates='subjects')  # Updated to plural
 
 # Exam Model
 class Exam(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    term = db.Column(db.String(50), nullable=True)
-    form_id = db.Column(db.Integer, db.ForeignKey('form.id'), nullable=False, index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    deleted_at = db.Column(db.DateTime, nullable=True)
+    __tablename__ = 'exams'
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    term = Column(String(50), nullable=True)
+    form_id = Column(Integer, ForeignKey('forms.id'), nullable=False, index=True)
+    date = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    deleted_at = Column(DateTime, nullable=True)
     
-    form = db.relationship('Form', back_populates='exams', foreign_keys='Exam.form_id')  # Use back_populates
-    results = db.relationship('Result', back_populates='exam')  # Use back_populates
+    form = relationship('Form', back_populates='exams', foreign_keys=[form_id])
+    results = relationship('Result', back_populates='exam')
 
     @validates('form_id')
     def validate_form_id(self, key, form_id):
@@ -153,19 +163,22 @@ class Exam(db.Model):
             raise ValueError(f"Invalid form_id: {form_id} - No matching form exists")
         return form_id
 
-# Result Model
+# In app/models.py
 class Result(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    student_id = db.Column(db.Integer, db.ForeignKey('student.id'), nullable=False, index=True)
-    exam_id = db.Column(db.Integer, db.ForeignKey('exam.id'), nullable=False, index=True)
-    subject_id = db.Column(db.Integer, db.ForeignKey('subject.id'), nullable=False, index=True)
-    score = db.Column(db.Float, nullable=False, server_default='0.0')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    deleted_at = db.Column(db.DateTime, nullable=True)
+    __tablename__ = 'results'
+    id = Column(db.Integer, primary_key=True)
+    student_id = Column(db.Integer, ForeignKey('students.id'), nullable=False, index=True)
+    exam_id = Column(db.Integer, ForeignKey('exams.id'), nullable=False, index=True)
+    subject_id = Column(db.Integer, ForeignKey('subjects.id'), nullable=False, index=True)
+    teacher_id = Column(db.Integer, ForeignKey('teachers.id'), nullable=False, index=True)  # New column
+    score = Column(Float, nullable=False, server_default='0.0')
+    created_at = Column(DateTime, default=datetime.utcnow)
+    deleted_at = Column(DateTime, nullable=True)
     
-    student = db.relationship('Student', back_populates='results')  # Use back_populates
-    exam = db.relationship('Exam', back_populates='results')  # Use back_populates
-    subject = db.relationship('Subject', back_populates='results')  # Use back_populates
+    student = relationship('Student', back_populates='results')
+    exam = relationship('Exam', back_populates='results')
+    subject = relationship('Subject', back_populates='results')
+    teacher = relationship('Teacher', back_populates='results')  # Optional relationship
 
     @validates('student_id')
     def validate_student_id(self, key, student_id):
@@ -185,23 +198,29 @@ class Result(db.Model):
             raise ValueError(f"Invalid subject_id: {subject_id}")
         return subject_id
 
+    @validates('teacher_id')
+    def validate_teacher_id(self, key, teacher_id):
+        if not Teacher.query.get(teacher_id):
+            raise ValueError(f"Invalid teacher_id: {teacher_id}")
+        return teacher_id
+
     @validates('score')
     def validate_score(self, key, score):
         if not (0 <= score <= 100):
             raise ValueError(f"Invalid score: {score} - Must be between 0 and 100")
         return score
-
 # Welfare Report Model
 class WelfareReport(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    student_id = db.Column(db.Integer, db.ForeignKey('student.id'), nullable=False, index=True)
-    category = db.Column(db.String(50), nullable=False)
-    remarks = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    deleted_at = db.Column(db.DateTime, nullable=True)
+    __tablename__ = 'welfare_reports'
+    id = Column(db.Integer, primary_key=True)
+    student_id = Column(db.Integer, ForeignKey('students.id'), nullable=False, index=True)  # Updated to 'students.id'
+    category = Column(db.String(50), nullable=False)
+    remarks = Column(db.Text, nullable=False)
+    created_at = Column(db.DateTime, default=datetime.utcnow)
+    updated_at = Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    deleted_at = Column(db.DateTime, nullable=True)
     
-    student = db.relationship('Student', back_populates='welfare_reports')  # Use back_populates
+    student = relationship('Student', back_populates='welfare_reports')
 
     @validates('student_id')
     def validate_student_id(self, key, student_id):
