@@ -34,7 +34,7 @@ def create_app(config_class="app.config.Config"):
     bcrypt.init_app(app)
     ma.init_app(app)
     jwt.init_app(app)  # Initialize JWTManager with the app
-    CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
+    CORS(app, resources={r"/api/*": {"origins": "https://byte-force-ed-tech.netlify.app/"}})
 
     # Enable foreign keys for SQLite using text()
     @app.before_request
