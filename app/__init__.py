@@ -35,7 +35,7 @@ def create_app():
     jwt_manager.init_app(app)
     
     # CORS: Allow Render frontend (adjust as needed)
-    CORS(app, resources={r"/api/*": {"origins": ["https://byte-force-ed-tech.netlify.app", "http://localhost:3000"]}})
+    CORS(app, resources={r"/api/*": {"origins": ["https://byte-force-ed-tech-app.netlify.app/"]}})
 
     # Enable foreign keys for SQLite (optional, not needed for PostgreSQL on Render)
     @app.before_request
